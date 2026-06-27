@@ -1,0 +1,9 @@
+**/node_modules
+frontend/build
+frontend/.svelte-kit
+backend/cmd/server/frontend_dist/*
+!backend/cmd/server/frontend_dist/.gitkeep
+**/*.log
+.git
+.env
+*.md

@@ -1,0 +1,25 @@
+# Node / frontend
+node_modules/
+frontend/build/
+frontend/.svelte-kit/
+frontend/.vite/
+
+# Go
+/backend/nimlypanel
+/backend/cmd/server/nimlypanel
+
+# Embedded frontend build (generated at Docker build time)
+backend/cmd/server/frontend_dist/*
+!backend/cmd/server/frontend_dist/.gitkeep
+
+# Secrets / local config
+.env
+*.local
+
+# Audit logs
+*.jsonl
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
