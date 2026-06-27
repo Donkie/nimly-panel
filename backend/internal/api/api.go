@@ -86,8 +86,21 @@ func securityHeaders(next http.Handler) http.Handler {
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Referrer-Policy", "no-referrer")
+		// SvelteKit injects a small inline bootstrap script into the static
+		// shell; a static SPA can't use per-request nonces, so inline scripts
+		// from our own build are allowed. connect-src stays 'self' (API + SSE),
+		// and framing/base/object/form are locked down.
 		h.Set("Content-Security-Policy",
-			"default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'")
+			"default-src 'self'; "+
+				"script-src 'self' 'unsafe-inline'; "+
+				"style-src 'self' 'unsafe-inline'; "+
+				"img-src 'self' data:; "+
+				"font-src 'self' data:; "+
+				"connect-src 'self'; "+
+				"frame-ancestors 'none'; "+
+				"base-uri 'self'; "+
+				"form-action 'self'; "+
+				"object-src 'none'")
 		next.ServeHTTP(w, r)
 	})
 }
