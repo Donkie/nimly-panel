@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -23,7 +24,11 @@ import (
 )
 
 func main() {
-	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	level := slog.LevelInfo
+	if strings.EqualFold(os.Getenv("LOG_LEVEL"), "debug") {
+		level = slog.LevelDebug
+	}
+	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
 
 	if err := run(log); err != nil {
 		log.Error("fatal", "err", err)
@@ -36,6 +41,15 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+
+	log.Info("starting nimly-panel",
+		"app_base_url", cfg.AppBaseURL,
+		"mqtt_broker", cfg.MQTTBrokerURL,
+		"mqtt_username", cfg.MQTTUsername,
+		"lock_topic", cfg.LockTopic,
+		"oidc_issuer", cfg.OIDCIssuer,
+		"log_level", cfg.LogLevel,
+	)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

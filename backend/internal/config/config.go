@@ -16,6 +16,7 @@ type Config struct {
 	Addr       string // listen address, e.g. ":8080"
 	AppBaseURL string // public base URL, e.g. https://lock.example.com
 	DevMode    bool   // relaxes cookie Secure flag and proxies the frontend
+	LogLevel   string // debug | info (default info)
 
 	// MQTT
 	MQTTBrokerURL string // e.g. tcp://broker.example.lan:1883 or tls://broker.example.lan:8883
@@ -49,6 +50,7 @@ func Load() (*Config, error) {
 		Addr:            getenv("ADDR", ":8080"),
 		AppBaseURL:      strings.TrimRight(os.Getenv("APP_BASE_URL"), "/"),
 		DevMode:         boolenv("DEV_MODE", false),
+		LogLevel:        getenv("LOG_LEVEL", "info"),
 		MQTTBrokerURL:   os.Getenv("MQTT_BROKER_URL"),
 		MQTTUsername:    os.Getenv("MQTT_USERNAME"),
 		MQTTPassword:    os.Getenv("MQTT_PASSWORD"),
