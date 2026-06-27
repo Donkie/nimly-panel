@@ -138,6 +138,7 @@ func (s *Service) RefreshPins() error {
 // RefreshConstraints polls the read-only PIN constraints and core attributes.
 func (s *Service) RefreshConstraints() error {
 	return s.publishJSON(s.getTopic(), map[string]string{
+		"state":            "",
 		"max_pin_users":    "",
 		"min_pin_length":   "",
 		"max_pin_length":   "",

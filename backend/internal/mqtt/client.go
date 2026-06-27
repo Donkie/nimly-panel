@@ -84,6 +84,7 @@ func (c *Client) Publish(topic string, payload []byte) error {
 
 func (c *Client) onConnect(_ mqtt.Client) {
 	c.log.Info("mqtt connected", "broker", c.opts.BrokerURL)
+	c.store.ApplyState(func(s *lock.State) { s.BrokerConnected = true })
 
 	stateTopic := c.opts.LockTopic
 	availTopic := c.opts.LockTopic + "/availability"
@@ -111,7 +112,10 @@ func (c *Client) onConnect(_ mqtt.Client) {
 
 func (c *Client) onConnectionLost(_ mqtt.Client, err error) {
 	c.log.Warn("mqtt connection lost", "err", err)
-	c.store.ApplyState(func(s *lock.State) { s.Available = false })
+	c.store.ApplyState(func(s *lock.State) {
+		s.BrokerConnected = false
+		s.Available = false
+	})
 }
 
 func (c *Client) onState(_ mqtt.Client, m mqtt.Message) {

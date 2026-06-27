@@ -35,8 +35,10 @@
       <button class="big primary" disabled={busy} onclick={() => setState('unlock')}>Unlock</button>
       <button class="big" disabled={busy} onclick={() => setState('lock')}>Lock</button>
     </div>
-    {#if !lock.available}
-      <p class="muted center">Lock is currently unreachable over MQTT.</p>
+    {#if !lock.broker_connected}
+      <p class="muted center">⚠️ Not connected to the MQTT broker — check broker address/credentials.</p>
+    {:else if lock.lock_state === 'unknown'}
+      <p class="muted center">Connected to the broker, waiting for the lock to report its state…</p>
     {/if}
   </div>
 </section>

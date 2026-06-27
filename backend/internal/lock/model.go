@@ -40,8 +40,9 @@ var ValidSoundVolumes = map[string]bool{
 // State is the cached, public-facing view of the lock. Secrets (actual PIN
 // digits) are deliberately excluded — only whether a slot has a code is kept.
 type State struct {
-	LockState      string     `json:"lock_state"` // locked | unlocked | not_fully_locked | unknown
-	Available      bool       `json:"available"`
+	LockState       string    `json:"lock_state"` // locked | unlocked | not_fully_locked | unknown
+	BrokerConnected bool      `json:"broker_connected"`
+	Available       bool      `json:"available"`
 	Battery        *float64   `json:"battery,omitempty"`
 	Voltage        *float64   `json:"voltage,omitempty"`
 	LinkQuality    *int       `json:"link_quality,omitempty"`
