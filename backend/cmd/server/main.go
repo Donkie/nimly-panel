@@ -5,8 +5,6 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"io/fs"
 	"log/slog"
@@ -44,15 +42,10 @@ func run(log *slog.Logger) error {
 		return err
 	}
 
-	// Fingerprint the MQTT password (length + sha256 prefix) so credential
-	// mangling by env injection can be diagnosed without exposing the value.
-	pwSum := sha256.Sum256([]byte(cfg.MQTTPassword))
 	log.Info("starting nimly-panel",
 		"app_base_url", cfg.AppBaseURL,
 		"mqtt_broker", cfg.MQTTBrokerURL,
 		"mqtt_username", cfg.MQTTUsername,
-		"mqtt_password_len", len(cfg.MQTTPassword),
-		"mqtt_password_sha256_12", hex.EncodeToString(pwSum[:])[:12],
 		"lock_topic", cfg.LockTopic,
 		"oidc_issuer", cfg.OIDCIssuer,
 		"log_level", cfg.LogLevel,

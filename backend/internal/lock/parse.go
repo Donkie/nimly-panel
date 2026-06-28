@@ -184,7 +184,14 @@ func normalizeLockState(s string) string {
 	}
 }
 
+func isJSONNull(v json.RawMessage) bool {
+	return strings.TrimSpace(string(v)) == "null"
+}
+
 func asString(v json.RawMessage) string {
+	if isJSONNull(v) {
+		return ""
+	}
 	var s string
 	if err := json.Unmarshal(v, &s); err == nil {
 		return s
@@ -193,6 +200,11 @@ func asString(v json.RawMessage) string {
 }
 
 func asFloatPtr(v json.RawMessage) *float64 {
+	// JSON null unmarshals into a float without error but leaves it at 0;
+	// treat it as "absent" so callers see nil rather than a bogus 0.
+	if isJSONNull(v) {
+		return nil
+	}
 	var f float64
 	if err := json.Unmarshal(v, &f); err == nil {
 		return &f
@@ -214,6 +226,9 @@ func asIntPtr(v json.RawMessage) *int {
 }
 
 func asBoolPtr(v json.RawMessage) *bool {
+	if isJSONNull(v) {
+		return nil
+	}
 	var b bool
 	if err := json.Unmarshal(v, &b); err == nil {
 		return &b

@@ -87,6 +87,27 @@ func TestIngestDerivesEvents(t *testing.T) {
 	}
 }
 
+func TestParseNullConstraints(t *testing.T) {
+	// Real Nimly state reports these as null; they must come back as nil, not 0.
+	payload := []byte(`{"state":"LOCK","battery":81,"max_pin_users":null,"min_pin_length":null,"max_pin_length":null,"pin_code":null,"auto_relock":true}`)
+	p, err := Parse(payload)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if p.MaxPinUsers != nil {
+		t.Errorf("max_pin_users = %v, want nil", *p.MaxPinUsers)
+	}
+	if p.MinPinLength != nil || p.MaxPinLength != nil {
+		t.Errorf("pin length constraints should be nil for null input")
+	}
+	if len(p.Pins) != 0 {
+		t.Errorf("null pin_code should yield no pins, got %d", len(p.Pins))
+	}
+	if p.Battery == nil || *p.Battery != 81 {
+		t.Errorf("battery should still parse: %v", p.Battery)
+	}
+}
+
 func TestValidatePin(t *testing.T) {
 	minL, maxL := 4, 8
 	st := State{MinPinLength: &minL, MaxPinLength: &maxL}
