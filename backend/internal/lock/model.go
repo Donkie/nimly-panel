@@ -55,13 +55,17 @@ type State struct {
 	UpdatedAt      time.Time  `json:"updated_at"`
 }
 
-// PinCode is the public-facing view of a single PIN slot. The actual digits are
-// never exposed to clients.
+// PinCode is the public-facing view of a single PIN slot, and the record
+// persisted by the panel (the lock can't report its stored PINs, so the panel
+// is the source of truth). The actual PIN digits are never stored or exposed.
 type PinCode struct {
-	User        int    `json:"user"`
-	UserType    string `json:"user_type,omitempty"`
-	UserEnabled bool   `json:"user_enabled"`
-	HasCode     bool   `json:"has_code"`
+	User        int        `json:"user"`
+	Name        string     `json:"name,omitempty"`
+	UserType    string     `json:"user_type,omitempty"`
+	UserEnabled bool       `json:"user_enabled"`
+	HasCode     bool       `json:"has_code"`
+	CreatedAt   *time.Time `json:"created_at,omitempty"`
+	UpdatedAt   *time.Time `json:"updated_at,omitempty"`
 }
 
 // EventKind distinguishes lock activity.

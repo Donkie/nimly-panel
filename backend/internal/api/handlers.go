@@ -76,6 +76,20 @@ func (s *Server) handleSetPin(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
+
+	// No code supplied → metadata-only rename of an existing slot (the lock is
+	// not touched, since we can't change a code without sending one).
+	if req.PinCode == "" {
+		if err := s.svc.RenamePin(user, req.Name); err != nil {
+			s.audit.Fail(actorOf(u), "pin.rename", strconv.Itoa(user), map[string]any{"err": err.Error()})
+			s.respondErr(w, err)
+			return
+		}
+		s.audit.OK(actorOf(u), "pin.rename", strconv.Itoa(user), map[string]any{"name": req.Name})
+		writeJSON(w, http.StatusAccepted, map[string]string{"status": "accepted"})
+		return
+	}
+
 	if err := s.svc.SetPin(user, req); err != nil {
 		s.audit.Fail(actorOf(u), "pin.set", strconv.Itoa(user), map[string]any{"err": err.Error()})
 		s.respondErr(w, err)

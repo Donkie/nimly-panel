@@ -13,7 +13,7 @@
   let editing = $state(null); // existing pin or null
   let busy = $state(false);
 
-  let form = $state({ user: 0, user_type: 'unrestricted', user_enabled: true, pin_code: '' });
+  let form = $state({ user: 0, name: '', user_type: 'unrestricted', user_enabled: true, pin_code: '' });
 
   let lock = $derived(app.lock);
   let minLen = $derived(lock.min_pin_length ?? 4);
@@ -30,13 +30,19 @@
 
   function openAdd() {
     editing = null;
-    form = { user: nextFreeUser(), user_type: 'unrestricted', user_enabled: true, pin_code: '' };
+    form = { user: nextFreeUser(), name: '', user_type: 'unrestricted', user_enabled: true, pin_code: '' };
     sheetOpen = true;
   }
 
   function openEdit(pin) {
     editing = pin;
-    form = { user: pin.user, user_type: pin.user_type || 'unrestricted', user_enabled: pin.user_enabled, pin_code: '' };
+    form = {
+      user: pin.user,
+      name: pin.name || '',
+      user_type: pin.user_type || 'unrestricted',
+      user_enabled: pin.user_enabled,
+      pin_code: ''
+    };
     sheetOpen = true;
   }
 
@@ -52,18 +58,25 @@
     return null;
   });
 
-  let canSave = $derived(form.pin_code.length > 0 && !pinError && (maxUsers == null || form.user < maxUsers));
+  // When editing, the code is optional: leaving it blank just renames the slot
+  // (the lock isn't touched). When adding, a code is required.
+  let renameOnly = $derived(!!editing && form.pin_code.length === 0);
+  let canSave = $derived(
+    (maxUsers == null || form.user < maxUsers) &&
+      (renameOnly ? form.name.trim().length > 0 : form.pin_code.length > 0 && !pinError)
+  );
 
   async function save() {
     busy = true;
     const ok = await action(
       () =>
         api.setPin(form.user, {
+          name: form.name.trim(),
           user_type: form.user_type,
           user_enabled: form.user_enabled,
           pin_code: form.pin_code
         }),
-      editing ? 'PIN updated' : 'PIN added'
+      renameOnly ? 'Name updated' : editing ? 'PIN updated' : 'PIN added'
     );
     busy = false;
     if (ok) close();
@@ -91,8 +104,8 @@
       {#each pins as pin}
         <div class="list-item">
           <div>
-            <div class="value">User {pin.user}</div>
-            <div class="muted" style="font-size:0.8rem">{typeLabel(pin.user_type)}</div>
+            <div class="value">{pin.name || `User ${pin.user}`}</div>
+            <div class="muted" style="font-size:0.8rem">slot {pin.user} · {typeLabel(pin.user_type)}</div>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
             <span class="badge {pin.user_enabled ? 'on' : 'off'}">{pin.user_enabled ? 'enabled' : 'disabled'}</span>
@@ -120,12 +133,17 @@
       {/if}
 
       <label class="field">
-        PIN code ({minLen}–{maxLen} digits)
+        Name
+        <input type="text" autocomplete="off" placeholder="e.g. Cleaner, Guest, Sarah" bind:value={form.name} />
+      </label>
+
+      <label class="field">
+        PIN code ({minLen}–{maxLen} digits){#if editing}<span class="muted"> — leave blank to keep current</span>{/if}
         <input
           type="tel"
           inputmode="numeric"
           autocomplete="off"
-          placeholder={editing ? 'Enter a new code' : 'e.g. 1234'}
+          placeholder={editing ? 'Leave blank to rename only' : 'e.g. 1234'}
           bind:value={form.pin_code}
         />
         {#if pinError}<span style="color:var(--danger)">{pinError}</span>{/if}
@@ -145,10 +163,14 @@
 
       <div class="btn-group">
         <button onclick={close}>Cancel</button>
-        <button class="primary" disabled={!canSave || busy} onclick={save}>{editing ? 'Save' : 'Add PIN'}</button>
+        <button class="primary" disabled={!canSave || busy} onclick={save}>
+          {renameOnly ? 'Save name' : editing ? 'Save' : 'Add PIN'}
+        </button>
       </div>
-      {#if editing}
-        <p class="muted center" style="font-size:0.8rem">Saving will overwrite the existing code for this slot.</p>
+      {#if editing && !renameOnly}
+        <p class="muted center" style="font-size:0.8rem">Entering a code overwrites the code for this slot on the lock.</p>
+      {:else if renameOnly}
+        <p class="muted center" style="font-size:0.8rem">Updates the name only — the lock isn't changed.</p>
       {/if}
     </div>
   </div>

@@ -61,8 +61,22 @@ func run(log *slog.Logger) error {
 	}
 	defer au.Close()
 
+	// Persistent PIN store (panel is the source of truth for PIN slots).
+	pinStore, err := lock.NewPinStore(cfg.PinStorePath, cfg.PinStoreKey)
+	if err != nil {
+		return err
+	}
+	if !pinStore.Persistent() {
+		log.Warn("PIN_STORE_PATH not set; PIN list is in-memory only and will reset on restart")
+	} else if !pinStore.Encrypted() {
+		log.Warn("PIN_STORE_KEY not set; PIN store is written as plaintext (set a key to encrypt at rest)")
+	} else {
+		log.Info("PIN store encrypted at rest")
+	}
+
 	// Lock state cache + MQTT client + service.
 	store := lock.NewStore()
+	store.SeedPins(pinStore.List()) // hydrate the live cache from disk
 	mqttClient := mqtt.New(mqtt.Options{
 		BrokerURL: cfg.MQTTBrokerURL,
 		Username:  cfg.MQTTUsername,
@@ -71,7 +85,7 @@ func run(log *slog.Logger) error {
 		LockTopic: cfg.LockTopic,
 	}, store, log)
 
-	svc := lock.NewService(mqttClient, store, cfg.LockTopic)
+	svc := lock.NewService(mqttClient, store, pinStore, cfg.LockTopic)
 	mqttClient.Bind(svc)
 
 	// Connect in the background: with connect-retry enabled the connect token

@@ -18,7 +18,14 @@ settings and view live activity — from your phone first.
 | Settings | Sound volume, auto-relock, refresh-from-lock |
 | Activity | Live unlock/lock events with source (keypad/fingerprint/rfid/zigbee) and user |
 
-PIN digits are never displayed or logged — only whether a slot has a code.
+PIN digits are never displayed, logged, or stored — only metadata.
+
+> **Why the panel stores PINs:** this lock's firmware does not report its stored
+> PIN table over Zigbee (`getPinCode` times out), so the panel is the source of
+> truth. It persists slot metadata (name, type, enabled, created date — never the
+> digits) to `PIN_STORE_PATH` (a file on a mounted volume) and pushes set/clear
+> to the lock. Editing a slot with a blank code just renames it. Set
+> `PIN_STORE_KEY` to encrypt the store at rest (AES-256-GCM).
 
 ## How it talks to the lock
 
@@ -110,8 +117,10 @@ port — the Go binary serves both the API and the embedded SPA).
 6. **Networking:** ensure the Dokploy host can reach your MQTT broker
    (`MQTT_BROKER_URL` with the broker's LAN IP/host — the broker runs alongside
    your Zigbee2MQTT, it is not the HA add-on).
-7. **(Optional) audit volume:** mount a volume and set `AUDIT_LOG_PATH` (e.g.
-   `/data/audit.jsonl`) to persist the audit trail.
+7. **Persistence volume:** mount a volume at `/data`, set
+   `PIN_STORE_PATH=/data/pins.json` so the PIN inventory survives redeploys, and
+   set `PIN_STORE_KEY` (a long random secret) to encrypt it at rest. Optionally
+   also set `AUDIT_LOG_PATH=/data/audit.jsonl` for the audit trail.
 8. **Deploy**, then open the domain — you'll be redirected to PocketID to log in.
 
 ## Security notes

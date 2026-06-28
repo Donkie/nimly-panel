@@ -76,6 +76,18 @@ func (s *Store) ApplyState(mutate func(*State)) {
 	s.notify()
 }
 
+// SeedPins replaces the live PIN cache (e.g. from the persistent store at
+// startup) without emitting per-pin notifications.
+func (s *Store) SeedPins(pins []PinCode) {
+	s.mu.Lock()
+	s.pins = make(map[int]PinCode, len(pins))
+	for _, p := range pins {
+		s.pins[p.User] = p
+	}
+	s.mu.Unlock()
+	s.notify()
+}
+
 // UpsertPin replaces or inserts a single PIN slot.
 func (s *Store) UpsertPin(p PinCode) {
 	s.mu.Lock()

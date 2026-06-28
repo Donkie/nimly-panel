@@ -25,14 +25,18 @@ func invalid(format string, a ...any) error { return ValidationError{fmt.Sprintf
 type Service struct {
 	pub       Publisher
 	store     *Store
+	pins      *PinStore
 	baseTopic string
 }
 
-// NewService wires a Service to its publisher, cache and the lock's Z2M base
-// topic (e.g. "zigbee2mqtt/Front Door Lock").
-func NewService(pub Publisher, store *Store, baseTopic string) *Service {
-	return &Service{pub: pub, store: store, baseTopic: baseTopic}
+// NewService wires a Service to its publisher, cache, persistent PIN store and
+// the lock's Z2M base topic (e.g. "zigbee2mqtt/Front Door Lock").
+func NewService(pub Publisher, store *Store, pins *PinStore, baseTopic string) *Service {
+	return &Service{pub: pub, store: store, pins: pins, baseTopic: baseTopic}
 }
+
+// PinStore returns the persistent PIN store.
+func (s *Service) PinStore() *PinStore { return s.pins }
 
 // Store returns the underlying state cache.
 func (s *Service) Store() *Store { return s.store }
@@ -64,6 +68,7 @@ func (s *Service) SetLockState(state string) error {
 
 // PinRequest is the validated input for setting a PIN slot.
 type PinRequest struct {
+	Name        string `json:"name"`
 	UserType    string `json:"user_type"`
 	UserEnabled bool   `json:"user_enabled"`
 	PinCode     string `json:"pin_code"`
@@ -102,13 +107,34 @@ func (s *Service) SetPin(user int, req PinRequest) error {
 	if err := s.publishJSON(s.setTopic(), payload); err != nil {
 		return err
 	}
-	// Optimistic cache update; the device will confirm via a state message.
-	s.store.UpsertPin(PinCode{
+	// Persist metadata (panel is the source of truth — never store the digits),
+	// then mirror into the live cache so the UI/SSE update immediately.
+	rec := PinCode{
 		User:        user,
+		Name:        req.Name,
 		UserType:    req.UserType,
 		UserEnabled: req.UserEnabled,
 		HasCode:     true,
-	})
+	}
+	saved, err := s.pins.Upsert(rec)
+	if err != nil {
+		return fmt.Errorf("persist pin: %w", err)
+	}
+	s.store.UpsertPin(saved)
+	return nil
+}
+
+// RenamePin updates only the friendly name of an existing slot (panel metadata;
+// no lock command is sent).
+func (s *Service) RenamePin(user int, name string) error {
+	saved, ok, err := s.pins.SetName(user, name)
+	if err != nil {
+		return fmt.Errorf("persist pin: %w", err)
+	}
+	if !ok {
+		return invalid("no PIN slot %d to rename", user)
+	}
+	s.store.UpsertPin(saved)
 	return nil
 }
 
@@ -125,6 +151,9 @@ func (s *Service) ClearPin(user int) error {
 	}
 	if err := s.publishJSON(s.setTopic(), payload); err != nil {
 		return err
+	}
+	if err := s.pins.Delete(user); err != nil {
+		return fmt.Errorf("persist pin delete: %w", err)
 	}
 	s.store.DeletePin(user)
 	return nil

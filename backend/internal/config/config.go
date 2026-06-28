@@ -41,6 +41,13 @@ type Config struct {
 
 	// Audit
 	AuditLogPath string // optional JSONL append file; empty = stdout only
+
+	// PIN persistence (panel is source of truth — the lock can't report its
+	// stored PINs). Path to a JSON file, ideally on a mounted volume.
+	PinStorePath string
+	// Encryption key for the PIN store (any string; a 32-byte AES key is
+	// derived from it). If empty, the store is written as plaintext JSON.
+	PinStoreKey string
 }
 
 // Load reads configuration from the environment, applies defaults and validates
@@ -67,6 +74,8 @@ func Load() (*Config, error) {
 		SessionLifetime: durenv("SESSION_LIFETIME", 12*time.Hour),
 		SessionIdle:     durenv("SESSION_IDLE_TIMEOUT", 1*time.Hour),
 		AuditLogPath:    os.Getenv("AUDIT_LOG_PATH"),
+		PinStorePath:    os.Getenv("PIN_STORE_PATH"),
+		PinStoreKey:     os.Getenv("PIN_STORE_KEY"),
 	}
 
 	if c.OIDCRedirectURL == "" && c.AppBaseURL != "" {
