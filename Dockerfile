@@ -18,17 +18,18 @@ COPY backend/ ./
 RUN rm -rf cmd/server/frontend_dist && mkdir -p cmd/server/frontend_dist
 COPY --from=frontend /app/frontend/build/ cmd/server/frontend_dist/
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/nimlypanel ./cmd/server
-# Pre-create /data owned by distroless nonroot (UID 65532) so that Docker
-# initialises a mounted volume with the correct permissions on first run.
-RUN mkdir /data && chown 65532:65532 /data
 
 # ---- Stage 3: minimal runtime --------------------------------------------
-# distroless/static ships CA certificates (needed for OIDC discovery / MQTT TLS)
-# and runs as a non-root user.
-FROM gcr.io/distroless/static-debian12:nonroot
-WORKDIR /
+# Alpine gives us a real entrypoint so we can chown /data before dropping
+# to nonroot — distroless has no shell and can't fix volume permissions at
+# startup.
+FROM alpine:3.22
+RUN apk add --no-cache ca-certificates su-exec \
+ && addgroup -S nonroot \
+ && adduser -S -G nonroot nonroot \
+ && mkdir -p /data && chown nonroot:nonroot /data
 COPY --from=backend /out/nimlypanel /nimlypanel
-COPY --from=backend /data /data
+COPY deploy/docker-entrypoint.sh /docker-entrypoint.sh
 EXPOSE 8080
-USER nonroot:nonroot
-ENTRYPOINT ["/nimlypanel"]
+ENTRYPOINT ["/docker-entrypoint.sh"]
+CMD ["/nimlypanel"]
