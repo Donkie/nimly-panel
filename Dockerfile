@@ -30,6 +30,7 @@ RUN apk add --no-cache ca-certificates su-exec \
  && mkdir -p /data && chown nonroot:nonroot /data
 COPY --from=backend /out/nimlypanel /nimlypanel
 COPY deploy/docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 EXPOSE 8080
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["/nimlypanel"]
