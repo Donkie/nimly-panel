@@ -1,85 +1,85 @@
-// Central reactive application state (Svelte 5 runes) plus bootstrapping and a
-// live SSE subscription to the backend's /api/stream endpoint.
+import { api, setCsrfToken } from './api.js';
 
-import { api, setCsrfToken, loginRedirect } from './api.js';
-
+/**
+ * Central reactive app state — Svelte 5 universal reactivity.
+ * Import this object in any component; reads are tracked automatically.
+ */
 export const app = $state({
+  /** True after the first SSE state event is received. */
   ready: false,
-  me: null,
+  /** Authenticated user info, populated from GET /api/me. */
+  me: /** @type {{ subject: string, name: string, email: string, groups: string[], csrf_token: string } | null} */ (null),
+  /** Whether the SSE stream is currently live. */
   connected: false,
-  /** @type {any} */
-  lock: { lock_state: 'unknown', available: false },
-  /** @type {any[]} */
-  pins: [],
-  /** @type {any[]} */
-  events: [],
-  toast: null
+  /** Current lock state object from the most recent SSE event. */
+  lock: /** @type {Record<string, unknown>} */ ({}),
+  /** PIN slot array from the most recent SSE event. */
+  pins: /** @type {unknown[]} */ ([]),
+  /** Activity log (newest first, max 100). */
+  events: /** @type {unknown[]} */ ([]),
+  /** Active toast, or null. */
+  toast: /** @type {{ message: string, isError: boolean } | null} */ (null)
 });
 
-let toastTimer;
+/** @type {EventSource | null} */
+let _sse = null;
+/** @type {ReturnType<typeof setTimeout> | null} */
+let _reconnectTimer = null;
+/** @type {ReturnType<typeof setTimeout> | null} */
+let _toastTimer = null;
+
+/**
+ * Display a transient toast that auto-dismisses after 3.5 s.
+ * @param {string} message
+ * @param {boolean} [isError]
+ */
 export function showToast(message, isError = false) {
+  if (_toastTimer) clearTimeout(_toastTimer);
   app.toast = { message, isError };
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (app.toast = null), 3200);
+  _toastTimer = setTimeout(() => { app.toast = null; }, 3500);
 }
 
-function applySnapshot(snap) {
-  if (!snap) return;
-  if (snap.state) app.lock = snap.state;
-  if (Array.isArray(snap.pins)) app.pins = snap.pins;
-  if (Array.isArray(snap.events)) app.events = snap.events;
-}
+function connectSSE() {
+  if (_sse) _sse.close();
 
-let started = false;
+  _sse = new EventSource('/api/stream', { withCredentials: true });
 
-/** Bootstrap: load the user, then open the live stream. */
-export async function init() {
-  if (started) return;
-  started = true;
-  try {
-    const me = await api.me();
-    app.me = me;
-    setCsrfToken(me.csrf_token);
-  } catch (e) {
-    // api.me triggers a login redirect on 401; nothing else to do.
-    return;
-  }
-  try {
-    applySnapshot(await api.getLock());
-  } catch (e) {
-    showToast(/** @type {Error} */ (e).message, true);
-  }
-  app.ready = true;
-  openStream();
-}
-
-function openStream() {
-  const es = new EventSource('/api/stream', { withCredentials: true });
-  es.addEventListener('open', () => (app.connected = true));
-  es.addEventListener('state', (ev) => {
+  _sse.addEventListener('state', (e) => {
     try {
-      applySnapshot(JSON.parse(/** @type {MessageEvent} */ (ev).data));
-    } catch {
-      /* ignore malformed frame */
+      const data = JSON.parse(/** @type {MessageEvent} */(e).data);
+      app.lock    = data.state  ?? {};
+      app.pins    = data.pins   ?? [];
+      app.events  = (data.events ?? []).slice(0, 100);
+      app.connected = true;
+      if (!app.ready) app.ready = true;
+    } catch (err) {
+      console.error('[nimlypanel] SSE parse error', err);
     }
   });
-  es.addEventListener('error', () => {
+
+  _sse.onerror = () => {
     app.connected = false;
-    // EventSource auto-reconnects. If the session expired, a manual API call
-    // will surface the 401 and redirect.
-  });
+    _sse?.close();
+    _sse = null;
+    if (_reconnectTimer) clearTimeout(_reconnectTimer);
+    _reconnectTimer = setTimeout(connectSSE, 3000);
+  };
 }
 
-/** Wrap an API action with toast feedback. */
-export async function action(fn, successMsg) {
+/**
+ * Bootstrap the app. Call once in the root layout's onMount.
+ * 1. Fetches /api/me (redirects to login on 401).
+ * 2. Opens the SSE stream.
+ */
+export async function bootstrap() {
+  let me;
   try {
-    await fn();
-    if (successMsg) showToast(successMsg);
-    return true;
-  } catch (e) {
-    showToast(/** @type {Error} */ (e).message, true);
-    return false;
+    me = await api.get('/api/me');
+  } catch {
+    return; // 401 → redirect is handled inside api.get
   }
+  if (!me) return;
+  app.me = me;
+  setCsrfToken(/** @type {any} */(me).csrf_token);
+  connectSSE();
 }
-
-export { api, loginRedirect };

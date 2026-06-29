@@ -18,6 +18,9 @@ COPY backend/ ./
 RUN rm -rf cmd/server/frontend_dist && mkdir -p cmd/server/frontend_dist
 COPY --from=frontend /app/frontend/build/ cmd/server/frontend_dist/
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/nimlypanel ./cmd/server
+# Pre-create /data owned by distroless nonroot (UID 65532) so that Docker
+# initialises a mounted volume with the correct permissions on first run.
+RUN mkdir /data && chown 65532:65532 /data
 
 # ---- Stage 3: minimal runtime --------------------------------------------
 # distroless/static ships CA certificates (needed for OIDC discovery / MQTT TLS)
@@ -25,6 +28,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/nimlypa
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /
 COPY --from=backend /out/nimlypanel /nimlypanel
+COPY --from=backend /data /data
 EXPOSE 8080
 USER nonroot:nonroot
 ENTRYPOINT ["/nimlypanel"]

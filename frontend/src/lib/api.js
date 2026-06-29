@@ -1,60 +1,57 @@
-// Thin fetch wrapper for the panel API. Sends the session cookie automatically,
-// attaches the CSRF token to unsafe requests, and redirects to the OIDC login
-// flow on 401.
-
+/** @type {string} */
 let csrfToken = '';
 
-export function setCsrfToken(t) {
-  csrfToken = t || '';
+/** @param {string} token */
+export function setCsrfToken(token) {
+  csrfToken = token;
 }
 
-export function loginRedirect() {
-  window.location.href = '/api/auth/login';
-}
-
+/**
+ * @param {'GET'|'POST'|'PUT'|'DELETE'} method
+ * @param {string} path
+ * @param {unknown} [body]
+ * @returns {Promise<unknown>}
+ */
 async function request(method, path, body) {
-  /** @type {RequestInit} */
-  const opts = {
-    method,
-    credentials: 'same-origin',
-    headers: {}
-  };
-  if (body !== undefined) {
-    opts.headers['Content-Type'] = 'application/json';
-    opts.body = JSON.stringify(body);
-  }
-  if (method !== 'GET' && method !== 'HEAD') {
-    opts.headers['X-CSRF-Token'] = csrfToken;
+  /** @type {Record<string, string>} */
+  const headers = {};
+
+  if (method !== 'GET') {
+    headers['Content-Type'] = 'application/json';
+    headers['X-CSRF-Token'] = csrfToken;
   }
 
-  const res = await fetch(path, opts);
+  const res = await fetch(path, {
+    method,
+    credentials: 'include',
+    headers,
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {})
+  });
+
   if (res.status === 401) {
-    loginRedirect();
-    throw new Error('unauthorized');
+    window.location.href = '/api/auth/login';
+    return null;
   }
+
   if (!res.ok) {
-    let msg = `request failed (${res.status})`;
+    let msg = `HTTP ${res.status}`;
     try {
-      const data = await res.json();
-      if (data && data.error) msg = data.error;
-    } catch {
-      /* ignore */
-    }
+      const json = await res.json();
+      msg = json.message || json.error || msg;
+    } catch (_) { /* ignore */ }
     throw new Error(msg);
   }
-  if (res.status === 204) return null;
-  const ct = res.headers.get('content-type') || '';
-  return ct.includes('application/json') ? res.json() : null;
+
+  return res.json();
 }
 
 export const api = {
-  me: () => request('GET', '/api/me'),
-  getLock: () => request('GET', '/api/lock'),
-  setLockState: (state) => request('POST', '/api/lock/state', { state }),
-  setPin: (user, payload) => request('PUT', `/api/pins/${user}`, payload),
-  deletePin: (user) => request('DELETE', `/api/pins/${user}`),
-  setSoundVolume: (sound_volume) => request('POST', '/api/settings/sound-volume', { sound_volume }),
-  setAutoRelock: (enabled) => request('POST', '/api/settings/auto-relock', { enabled }),
-  refresh: () => request('POST', '/api/refresh'),
-  logout: () => request('POST', '/api/auth/logout')
+  /** @param {string} path */
+  get: (path) => request('GET', path),
+  /** @param {string} path @param {unknown} body */
+  post: (path, body) => request('POST', path, body),
+  /** @param {string} path @param {unknown} body */
+  put: (path, body) => request('PUT', path, body),
+  /** @param {string} path */
+  delete: (path) => request('DELETE', path)
 };
